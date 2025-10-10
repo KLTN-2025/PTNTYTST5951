@@ -1,43 +1,16 @@
-import NextAuth, { AuthOptions, DefaultSession } from "next-auth";
-import { DefaultJWT, JWT } from "next-auth/jwt";
+import NextAuth, { AuthOptions } from "next-auth";
 import Keycloak from "next-auth/providers/keycloak";
 
-// Validate environment variables
-if (!process.env.KEYCLOAK_CLIENT_ID) {
-  throw new Error("Missing KEYCLOAK_CLIENT_ID environment variable");
-}
-if (!process.env.KEYCLOAK_CLIENT_SECRET) {
-  throw new Error("Missing KEYCLOAK_CLIENT_SECRET environment variable");
-}
-if (!process.env.KEYCLOAK_ISSUER) {
-  throw new Error("Missing KEYCLOAK_ISSUER environment variable");
-}
-
-declare module "next-auth" {
-  interface Session extends DefaultSession {
-    accessToken?: string;
-    error?: "RefreshAccessTokenError";
-    user: DefaultSession["user"];
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT extends DefaultJWT {
-    accessToken?: string;
-    accessTokenExpires?: number;
-    refreshToken?: string;
-    provider?: string;
-    idToken?: string;
-    user?: any;
-    error?: "RefreshAccessTokenError";
-  }
-}
+if (!process.env.KEYCLOAK_CLIENT_ID)
+  throw new Error("Missing KEYCLOAK_CLIENT_ID");
+if (!process.env.KEYCLOAK_CLIENT_SECRET)
+  throw new Error("Missing KEYCLOAK_CLIENT_SECRET");
+if (!process.env.KEYCLOAK_ISSUER) throw new Error("Missing KEYCLOAK_ISSUER");
 
 const refreshAccessToken = async (token: import("next-auth/jwt").JWT) => {
   try {
-    if (!token.refreshToken) {
+    if (!token.refreshToken)
       return { ...token, error: "RefreshAccessTokenError" as const };
-    }
 
     const url = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
     const body = new URLSearchParams({
@@ -51,21 +24,30 @@ const refreshAccessToken = async (token: import("next-auth/jwt").JWT) => {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: body.toString(),
-      // (tùy) next: { revalidate: 0 } nếu đang ở môi trường edge
     });
 
     const refreshed = await response.json();
-    if (!response.ok) throw refreshed;
+    if (!response.ok) {
+      // invalid_grant / 401 → buộc login lại
+      return {
+        ...token,
+        accessToken: undefined,
+        refreshToken: undefined,
+        error: "RefreshAccessTokenError" as const,
+      };
+    }
 
     return {
       ...token,
       accessToken: refreshed.access_token,
-      accessTokenExpires: Date.now() + refreshed.expires_in * 1000,
+      accessTokenExpires:
+        Date.now() + Number(refreshed.expires_in ?? 300) * 1000,
       refreshToken: refreshed.refresh_token ?? token.refreshToken,
       error: undefined,
     };
   } catch (e) {
-    console.error("refreshAccessToken error", e);
+    if (process.env.NODE_ENV !== "production")
+      console.error("refreshAccessToken error", e);
     return { ...token, error: "RefreshAccessTokenError" as const };
   }
 };
@@ -74,63 +56,59 @@ export const authOptions: AuthOptions = {
   session: { strategy: "jwt" },
   providers: [
     Keycloak({
-      clientId: process.env.KEYCLOAK_CLIENT_ID,
-      clientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
-      issuer: process.env.KEYCLOAK_ISSUER,
+      clientId: process.env.KEYCLOAK_CLIENT_ID!,
+      clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
+      issuer: process.env.KEYCLOAK_ISSUER!,
+      authorization: { params: { scope: "openid profile email" } },
     }),
   ],
   callbacks: {
     async jwt({ token, user, account }) {
       if (account && user) {
-        console.log("Account", account);
-        console.log("User", user);
-        console.log("Token", token);
-        // Initial sign in
+        const expiresIn =
+          account.expires_in !== undefined ? Number(account.expires_in) : 300;
         return {
+          ...token,
           accessToken: account.access_token,
-          accessTokenExpires: Date.now() + Number(account.expires_in) * 1000,
+          accessTokenExpires: Date.now() + expiresIn * 1000,
           refreshToken: account.refresh_token,
           provider: account.provider,
           idToken: account.id_token,
           user,
+          error: undefined,
         };
       }
-
       if (
         token.accessTokenExpires &&
-        Date.now() < token.accessTokenExpires - 10000
+        Date.now() < token.accessTokenExpires - 10_000
       ) {
         return token;
       }
-
       return refreshAccessToken(token);
     },
     async session({ session, token }) {
       if (token) {
-        session.user = token.user;
-        session.accessToken = token.accessToken;
-        session.error = token.error;
+        if (token.user) session.user = token.user as any;
+        session.accessToken = token.accessToken as string | undefined;
+        session.error = token.error as any;
       }
-
       return session;
     },
   },
   events: {
     async signOut({ token }) {
-      if (token.provider === "keycloak" && token.idToken) {
-        const keycloakIssuer = process.env.KEYCLOAK_ISSUER;
-        const keycloakNextAuthUrl = process.env.NEXTAUTH_URL;
-        if (keycloakIssuer && keycloakNextAuthUrl) {
-          const logoutUrl = `${keycloakIssuer}/protocol/openid-connect/logout?id_token_hint=${
-            token.idToken
-          }&post_logout_redirect_uri=${encodeURIComponent(
-            keycloakNextAuthUrl
-          )}`;
-          await fetch(logoutUrl);
-        } else {
-          console.error(
-            "KEYCLOAK_ISSUER or NEXTAUTH_URL is not defined in environment variables."
-          );
+      if (token?.provider === "keycloak" && token.idToken) {
+        const issuer = process.env.KEYCLOAK_ISSUER;
+        const appUrl = process.env.NEXTAUTH_URL;
+        if (issuer && appUrl) {
+          const u = new URL(`${issuer}/protocol/openid-connect/logout`);
+          u.search = new URLSearchParams({
+            id_token_hint: token.idToken as string,
+            post_logout_redirect_uri: appUrl,
+          }).toString();
+          await fetch(u.toString());
+        } else if (process.env.NODE_ENV !== "production") {
+          console.error("Missing KEYCLOAK_ISSUER or NEXTAUTH_URL");
         }
       }
     },
