@@ -44,11 +44,11 @@ export class KeycloakAdminService implements OnModuleInit {
 
     await this.kc.auth({
       grantType: 'client_credentials',
-      clientId: this.config.get<string>(
-        'KEYCLOAK_ADMIN_CLIENT_ID',
-        'admin-nestjs-client',
+      clientId: this.config.get<string>('KEYCLOAK_CLIENT_ID', 'api-server'),
+      clientSecret: this.config.get<string>(
+        'KEYCLOAK_CLIENT_SECRET',
+        'GV2M8j4KXqERO6KlA2sv90T7YkNIasph',
       ),
-      clientSecret: this.config.get<string>('KEYCLOAK_ADMIN_CLIENT_SECRET'),
     });
   }
 

@@ -14,20 +14,18 @@ import { KeycloakAdminService } from './keycloak-admin.service';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService): KeycloakConnectOptions => {
-        const protocol = config.get<string>('KEYCLOAK_PROTOCOL');
-        const host = config.get<string>('KEYCLOAK_HOST');
-        const port = config.get<number>('KEYCLOAK_PORT');
+        const keycloakBaseUrl = config.get<string>('KEYCLOAK_BASE_URL');
         const realm = config.get<string>('KEYCLOAK_REALM');
         const clientId = config.get<string>('KEYCLOAK_CLIENT_ID');
         const secret = config.get<string>('KEYCLOAK_CLIENT_SECRET');
 
-        if (!protocol || !host || !port || !realm || !clientId || !secret) {
+        if (!keycloakBaseUrl || !realm || !clientId || !secret) {
           throw new Error(
             'Keycloak environment variables must be defined in env',
           );
         }
         return {
-          authServerUrl: `${protocol}://${host}:${port}`,
+          authServerUrl: keycloakBaseUrl,
           realm,
           clientId,
           secret,
