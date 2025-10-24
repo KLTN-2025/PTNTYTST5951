@@ -3,10 +3,11 @@ import {
   QueryClientProvider,
   HydrationBoundary,
   DehydratedState,
+  QueryClient,
 } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { getQueryClient } from "@/lib/query-client";
 import { SessionProvider } from "next-auth/react";
+import { useState } from "react";
 
 export default function Providers({
   children,
@@ -15,13 +16,26 @@ export default function Providers({
   children: React.ReactNode;
   state?: DehydratedState | null | undefined;
 }) {
-  const queryClient = getQueryClient();
-
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 60_000,
+            refetchOnWindowFocus: false,
+            retry: 1,
+          },
+          mutations: {
+            retry: 0,
+          },
+        },
+      })
+  );
   return (
     <SessionProvider>
-      <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={client}>
         <HydrationBoundary state={state}>{children}</HydrationBoundary>
-        <ReactQueryDevtools initialIsOpen={false} />
+        {process.env.NODE_ENV === "development" && <ReactQueryDevtools />}
       </QueryClientProvider>
     </SessionProvider>
   );

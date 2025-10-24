@@ -1,119 +1,96 @@
-import NextAuth, { AuthOptions } from "next-auth";
+import NextAuth from "next-auth";
 import Keycloak from "next-auth/providers/keycloak";
 
-if (!process.env.KEYCLOAK_CLIENT_ID)
-  throw new Error("Missing KEYCLOAK_CLIENT_ID");
-if (!process.env.KEYCLOAK_CLIENT_SECRET)
-  throw new Error("Missing KEYCLOAK_CLIENT_SECRET");
-if (!process.env.KEYCLOAK_ISSUER) throw new Error("Missing KEYCLOAK_ISSUER");
+const LEEWAY = 60;
 
-const refreshAccessToken = async (token: import("next-auth/jwt").JWT) => {
+async function refreshKeycloakToken(token: any) {
   try {
-    if (!token.refreshToken)
-      return { ...token, error: "RefreshAccessTokenError" as const };
-
-    const url = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
-    const body = new URLSearchParams({
-      client_id: process.env.KEYCLOAK_CLIENT_ID!,
-      client_secret: process.env.KEYCLOAK_CLIENT_SECRET!,
+    const params = new URLSearchParams({
+      client_id: process.env.AUTH_KEYCLOAK_ID!,
+      client_secret: process.env.AUTH_KEYCLOAK_SECRET!,
       grant_type: "refresh_token",
       refresh_token: token.refreshToken,
     });
 
-    const response = await fetch(url, {
+    const issuer = process.env.AUTH_KEYCLOAK_ISSUER!;
+    const res = await fetch(`${issuer}/protocol/openid-connect/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
+      body: params,
     });
 
-    const refreshed = await response.json();
-    if (!response.ok) {
-      // invalid_grant / 401 → buộc login lại
-      return {
-        ...token,
-        accessToken: undefined,
-        refreshToken: undefined,
-        error: "RefreshAccessTokenError" as const,
-      };
-    }
+    if (!res.ok) throw new Error("RefreshTokenRequestFailed");
+    const data = await res.json();
+
+    const now = Math.floor(Date.now() / 1000);
 
     return {
       ...token,
-      accessToken: refreshed.access_token,
-      accessTokenExpires:
-        Date.now() + Number(refreshed.expires_in ?? 300) * 1000,
-      refreshToken: refreshed.refresh_token ?? token.refreshToken,
+      accessToken: data.access_token,
+      idToken: data.id_token ?? token.idToken,
+      refreshToken: data.refresh_token ?? token.refreshToken,
+      expiresAt: now + (data.expires_in ?? 300) - LEEWAY,
+      refreshExpiresAt: data.refresh_expires_in
+        ? now + data.refresh_expires_in - LEEWAY
+        : token.refreshExpiresAt,
       error: undefined,
     };
   } catch (e) {
-    if (process.env.NODE_ENV !== "production")
-      console.error("refreshAccessToken error", e);
-    return { ...token, error: "RefreshAccessTokenError" as const };
+    return { ...token, error: "RefreshTokenError" as const };
   }
-};
+}
 
-export const authOptions: AuthOptions = {
-  session: { strategy: "jwt" },
+export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Keycloak({
-      clientId: process.env.KEYCLOAK_CLIENT_ID!,
-      clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
-      issuer: process.env.KEYCLOAK_ISSUER!,
-      authorization: { params: { scope: "openid profile email" } },
+      clientId: process.env.AUTH_KEYCLOAK_ID!,
+      clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
+      issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
+      authorization: {
+        params: { scope: "openid profile email patientId" },
+      },
     }),
   ],
   callbacks: {
-    async jwt({ token, user, account }) {
-      if (account && user) {
-        const expiresIn =
-          account.expires_in !== undefined ? Number(account.expires_in) : 300;
-        return {
-          ...token,
-          accessToken: account.access_token,
-          accessTokenExpires: Date.now() + expiresIn * 1000,
-          refreshToken: account.refresh_token,
-          provider: account.provider,
-          idToken: account.id_token,
-          user,
-          error: undefined,
-        };
-      }
-      if (
-        token.accessTokenExpires &&
-        Date.now() < token.accessTokenExpires - 10_000
-      ) {
+    async jwt({ token, account, profile }) {
+      if (account && profile) {
+        const now = Math.floor(Date.now() / 1000);
+        token.accessToken = account.access_token;
+        token.refreshToken = account.refresh_token;
+        token.idToken = account.id_token;
+        token.provider = account.provider;
+        token.expiresAt = (account.expires_at ?? now + 300) - LEEWAY;
+        token.refreshExpiresAt =
+          now + (account as any).refresh_expires_in - LEEWAY;
+        token.name = `${(profile as any).family_name ?? ""} ${
+          (profile as any).given_name ?? ""
+        }`.trim();
+        token.patientId = (profile as any).patientId;
+        token.userId = account.providerAccountId;
         return token;
       }
-      return refreshAccessToken(token);
-    },
-    async session({ session, token }) {
-      if (token) {
-        if (token.user) session.user = token.user as any;
-        session.accessToken = token.accessToken as string | undefined;
-        session.error = token.error as any;
+
+      const now = Math.floor(Date.now() / 1000);
+      if (token.refreshExpiresAt && now >= (token.refreshExpiresAt as number)) {
+        return { ...token, error: "RefreshTokenExpired" as const };
       }
+      if (now < (token.expiresAt as number)) return token;
+
+      // Hết hạn → refresh
+      if (token.refreshToken) {
+        return await refreshKeycloakToken(token);
+      }
+      return { ...token, error: "NoRefreshTokenError" as const };
+    },
+
+    async session({ session, token }) {
+      (session as any).accessToken = token.accessToken;
+      (session as any).idToken = token.idToken;
+      (session as any).error = token.error;
+      session.expiresAt = token.expiresAt as number;
+      session.user.patientId = (token as any).patientId;
+      session.user.id = (token as any).userId;
       return session;
     },
   },
-  events: {
-    async signOut({ token }) {
-      if (token?.provider === "keycloak" && token.idToken) {
-        const issuer = process.env.KEYCLOAK_ISSUER;
-        const appUrl = process.env.NEXTAUTH_URL;
-        if (issuer && appUrl) {
-          const u = new URL(`${issuer}/protocol/openid-connect/logout`);
-          u.search = new URLSearchParams({
-            id_token_hint: token.idToken as string,
-            post_logout_redirect_uri: appUrl,
-          }).toString();
-          await fetch(u.toString());
-        } else if (process.env.NODE_ENV !== "production") {
-          console.error("Missing KEYCLOAK_ISSUER or NEXTAUTH_URL");
-        }
-      }
-    },
-  },
-};
-
-const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST };
+});

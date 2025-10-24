@@ -20,13 +20,17 @@ const LandingPage = () => {
               Kết nối trực tiếp với bác sĩ, cơ sở y tế, phòng xét nghiệm và hiệu
               thuốc – tất cả trong một ứng dụng duy nhất.
             </p>
-            <button className="mt-10 bg-[#ff914d] text-white text-[20px] font-semibold px-8 py-4 rounded-full hover:bg-[#e6833d] w-[200px] transition">
+            <a
+              type="button"
+              href="/app"
+              className="cursor-pointer mt-10 bg-[#ff914d] text-white text-[20px] font-semibold px-8 py-4 rounded-full hover:bg-[#e6833d] w-[200px] transition"
+            >
               Truy cập ngay
-            </button>
+            </a>
           </div>
           <Image
             className="h-full w-auto object-contain"
-            src="assests/images/landing-page-01.svg"
+            src="assets/images/landing-page-01.svg"
             alt="Landing Page Image"
             width={500}
             height={500}
@@ -37,7 +41,7 @@ const LandingPage = () => {
         <div className="flex flex-row justify-center items-center w-full h-screen px-20">
           <Image
             className="w-1/2 h-auto object-contain"
-            src="assests/images/landing-page-06.svg"
+            src="assets/images/landing-page-06.svg"
             alt="Landing Page Image"
             width={1000}
             height={1000}
@@ -116,7 +120,7 @@ const LandingPage = () => {
           </div>
           <Image
             className="flex-1 object-contain mx-auto"
-            src="assests/images/landing-page-04.svg"
+            src="assets/images/landing-page-04.svg"
             alt="Landing Page Image"
             width={1000}
             height={800}
@@ -128,7 +132,7 @@ const LandingPage = () => {
             <div className="border-4 border-[#333] p-10 flex flex-col gap-5 items-center">
               <Image
                 className="h-[300px] w-auto object-cover"
-                src="assests/images/landing-page-04.svg"
+                src="assets/images/landing-page-04.svg"
                 alt="User Group"
                 width={1000}
                 height={750}
@@ -147,7 +151,7 @@ const LandingPage = () => {
             <div className="border-4 border-[#333] p-10 flex flex-col gap-5 items-center">
               <Image
                 className="h-[300px] w-auto object-cover"
-                src="assests/images/landing-page-05.svg"
+                src="assets/images/landing-page-05.svg"
                 alt="User Group"
                 width={1000}
                 height={750}
@@ -166,7 +170,7 @@ const LandingPage = () => {
             <div className="border-4 border-[#333] p-10 flex flex-col gap-5 items-center">
               <Image
                 className="h-[300px] w-auto object-cover"
-                src="assests/images/landing-page-06.svg"
+                src="assets/images/landing-page-06.svg"
                 alt="User Group"
                 width={1000}
                 height={750}
@@ -188,7 +192,7 @@ const LandingPage = () => {
       <footer className="w-full bg-[#ff914d] text-white py-20 flex flex-col items-center">
         <div className="flex flex-row justify-center items-center">
           <Image
-            src="assests/images/logo-only-white.svg"
+            src="assets/images/logo-only-white.svg"
             alt="Beetamin Logo"
             width={70}
             height={70}

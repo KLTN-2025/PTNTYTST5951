@@ -1,8 +1,9 @@
 "use client";
-import { signIn } from "next-auth/react";
+import { signInKeycloak } from "@/actions/auth";
+import React from "react";
 
-export default function LoginPage() {
-  return (
-    <button onClick={() => signIn("keycloak")}>Đăng nhập với Keycloak</button>
-  );
-}
+const LoginPage = () => {
+  return <button onClick={() => signInKeycloak()}>LoginPage</button>;
+};
+
+export default LoginPage;
