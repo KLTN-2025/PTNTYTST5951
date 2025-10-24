@@ -38,10 +38,10 @@ export class FhirHelperService {
 
   identifierConverter({
     citizenIdentification,
-    beetaminId,
+    userId,
   }: {
     citizenIdentification: string;
-    beetaminId: string;
+    userId: string;
   }): Identifier[] {
     const identifiers: Identifier[] = [];
     if (citizenIdentification) {
@@ -60,7 +60,7 @@ export class FhirHelperService {
         value: citizenIdentification,
       });
     }
-    if (beetaminId) {
+    if (userId) {
       identifiers.push({
         use: 'official',
         type: {
@@ -73,7 +73,7 @@ export class FhirHelperService {
           ],
         },
         system: 'https://beetamin.hivevn.net/fhir/sid/beetamin-id',
-        value: beetaminId,
+        value: userId,
       });
     }
     return identifiers;

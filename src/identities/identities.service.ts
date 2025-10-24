@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { FhirService } from 'src/fhir/fhir.service';
 import { InitIdentitiesInfoDto } from './dtos/identities-info.dto';
 import { Patient, Bundle, Practitioner } from 'fhir/r5';
@@ -6,6 +10,8 @@ import { User } from '../commons/decorators/user.decorator';
 import { FhirHelperService } from 'src/fhir/fhir-helper.service';
 import { KeycloakAdminService } from 'src/auth/keycloak-admin.service';
 import { UserRole } from 'src/commons/enums/role.enum';
+
+type UniqueFieldKey = 'userId' | 'citizenIdentification' | 'phone' | 'email';
 
 @Injectable()
 export class IdentitiesService {
@@ -20,13 +26,27 @@ export class IdentitiesService {
     initIdentitiesInfoData: InitIdentitiesInfoDto,
     identityType: UserRole,
   ): Promise<Patient | Practitioner> {
-    const identifierData = this.fhirHelperService.identifierConverter(
-      initIdentitiesInfoData,
-    );
+    const resourceType =
+      identityType === UserRole.PATIENT ? 'Patient' : 'Practitioner';
+    const identifierData = this.fhirHelperService.identifierConverter({
+      ...initIdentitiesInfoData,
+      userId: userData.id,
+    });
     if (identifierData.length === 0) {
       throw new BadRequestException(
         'Người dùng phải có ít nhất một định danh hợp lệ',
       );
+    }
+    const exitedUser = await this.isUserUniqueField({
+      ...initIdentitiesInfoData,
+      role: identityType,
+      userId: userData.id,
+    });
+    console.log('exitedUser', exitedUser);
+    if (exitedUser) {
+      throw new ConflictException('Dữ liệu trùng lặp', {
+        description: JSON.stringify(exitedUser),
+      });
     }
     const telecomData = this.fhirHelperService.contactPointConverter(
       initIdentitiesInfoData,
@@ -37,8 +57,8 @@ export class IdentitiesService {
       );
     }
     const patientData: Patient | Practitioner = {
-      resourceType:
-        identityType === UserRole.PATIENT ? 'Patient' : 'Practitioner',
+      resourceType: resourceType,
+
       identifier: identifierData,
       name: [
         this.fhirHelperService.humanNameConverter(initIdentitiesInfoData.name),
@@ -63,7 +83,7 @@ export class IdentitiesService {
 
     const newPatientData: Patient | Practitioner = await this.fhirService.post<
       Patient | Practitioner
-    >(`/${identityType}`, patientData, {
+    >(`/${resourceType}`, patientData, {
       headers: {
         'If-None-Exist': ifNoneExistCombined,
       },
@@ -72,25 +92,77 @@ export class IdentitiesService {
       throw new BadRequestException(`Tạo ${identityType} không thành công`);
     }
     await this.keycloakAdminService.assignUser(
-      userData.beetaminId,
+      userData.id,
       newPatientData.id,
       identityType,
     );
     return newPatientData;
   }
 
-  async getPatientInfoByIdentifier(identifierType: string, value: string) {
-    const searchResult = await this.fhirService.get<Bundle<Patient>>(
-      `/Patient?identifier=${identifierType}|${value}`,
-    );
-    if (searchResult.entry && (searchResult.total ?? 0) > 0) {
-      if (searchResult.total && searchResult.total > 1) {
-        console.warn(
-          `Warning: Found ${searchResult.total} patients with the same ${identifierType}: ${value}. Returning the first one.`,
-        );
-      }
-      return searchResult.entry[0].resource;
+  async isUserUniqueField({
+    userId,
+    citizenIdentification,
+    phone,
+    email,
+    role,
+  }: {
+    userId?: string;
+    citizenIdentification?: string;
+    phone?: string;
+    email?: string;
+    role?: UserRole;
+  }): Promise<Record<UniqueFieldKey, boolean> | null> {
+    const resourceTypeByRole: Partial<
+      Record<UserRole, 'Patient' | 'Practitioner'>
+    > = {
+      [UserRole.PATIENT]: 'Patient',
+      [UserRole.PRACTITIONER]: 'Practitioner',
+    };
+    console.log('userId', userId);
+
+    const resourceType = resourceTypeByRole[role!];
+    if (!resourceType) throw new BadRequestException('Role không hợp lệ');
+
+    const queryBuilders: Record<UniqueFieldKey, (v: string) => string> = {
+      userId: (v) =>
+        `identifier=https://beetamin.hivevn.net/fhir/sid/beetamin-id|${encodeURIComponent(v)}`,
+      citizenIdentification: (v) =>
+        `identifier=https://beetamin.hivevn.net/fhir/sid/vn-national-id|${encodeURIComponent(v)}`,
+      phone: (v) => `telecom=phone|${encodeURIComponent(v)}`,
+      email: (v) => `telecom=email|${encodeURIComponent(v)}`,
+    };
+
+    const inputs: Partial<Record<UniqueFieldKey, string | undefined>> = {
+      userId,
+      citizenIdentification,
+      phone,
+      email,
+    };
+
+    const tasks = (
+      Object.entries(inputs) as [UniqueFieldKey, string | undefined][]
+    )
+      .filter(([, val]) => typeof val === 'string' && val.trim().length > 0)
+      .map(async ([key, raw]) => {
+        const value = raw!.trim();
+        const url = `/${resourceType}?${queryBuilders[key](value)}`;
+        const bundle: Bundle | undefined =
+          await this.fhirService.get<Bundle>(url);
+        const found =
+          (bundle?.total ?? 0) > 0 && (bundle?.entry?.length ?? 0) > 0;
+        return { key, found };
+      });
+
+    if (tasks.length === 0) return null;
+
+    const results = await Promise.all(tasks);
+    const duplicates: Partial<Record<UniqueFieldKey, boolean>> = {};
+    for (const r of results) {
+      if (r.found) duplicates[r.key] = true;
     }
-    return null;
+
+    return Object.keys(duplicates).length > 0
+      ? (duplicates as Record<UniqueFieldKey, boolean>)
+      : null;
   }
 }

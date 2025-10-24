@@ -11,9 +11,6 @@ export class InitIdentitiesInfoDto {
   @IsNotEmpty()
   name: string;
 
-  @IsNotEmpty()
-  beetaminId: string;
-
   @IsNotEmpty({
     message: 'Số CCCD/CMND không được để trống.',
   })

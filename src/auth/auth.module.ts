@@ -4,6 +4,7 @@ import {
   KeycloakConnectModule,
   AuthGuard,
   KeycloakConnectOptions,
+  RoleGuard,
 } from 'nest-keycloak-connect';
 import { APP_GUARD } from '@nestjs/core';
 import { KeycloakAdminService } from './keycloak-admin.service';
@@ -40,6 +41,7 @@ import { KeycloakAdminService } from './keycloak-admin.service';
       provide: APP_GUARD,
       useClass: AuthGuard,
     },
+    { provide: APP_GUARD, useClass: RoleGuard },
   ],
   exports: [KeycloakAdminService],
 })

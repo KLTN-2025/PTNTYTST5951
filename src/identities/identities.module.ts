@@ -8,5 +8,6 @@ import { AuthModule } from 'src/auth/auth.module';
   imports: [FhirModule, AuthModule],
   controllers: [IdentitiesController],
   providers: [IdentitiesService],
+  exports: [IdentitiesService],
 })
 export class IdentitiesModule {}

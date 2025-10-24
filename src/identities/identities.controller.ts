@@ -17,8 +17,8 @@ export class IdentitiesController {
   constructor(private readonly identitiesService: IdentitiesService) {}
 
   @Get()
-  getIdentities() {
-    return { status: 'ok' };
+  getIdentities(@User() user: User) {
+    return { status: 'ok', user };
   }
 
   @Patch()
@@ -31,8 +31,20 @@ export class IdentitiesController {
     @Body() body: InitIdentitiesInfoDto,
   ) {
     if (role !== UserRole.PATIENT && role !== UserRole.PRACTITIONER) {
-      throw new NotFoundException('Role not found');
+      throw new NotFoundException('Vai trò không hợp lệ');
     }
-    return await this.identitiesService.createNewUser(user, body, role);
+    const newUser = await this.identitiesService.createNewUser(
+      user,
+      body,
+      role,
+    );
+    return {
+      status: 'ok',
+      data: {
+        userId: user.id,
+        userBeetaminId: newUser.id,
+        role: role,
+      },
+    };
   }
 }
