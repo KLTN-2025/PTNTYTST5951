@@ -36,11 +36,8 @@ import {
 } from "@/components/ui/popover";
 import { useSession } from "next-auth/react";
 import { useSetupNewPatientMutation } from "@/lib/querys/mutations";
-import { useQuery } from "@tanstack/react-query";
-import { testRoleQuery } from "@/lib/querys/queries";
 import { patientInitInfoFormSchema } from "@/lib/schemas/setup-profile";
 import { toast } from "sonner";
-import { signOut } from "@/auth";
 import { signOutAction } from "@/actions/auth";
 
 const genders = [
@@ -55,8 +52,6 @@ export function SetupProfilePage() {
     status: setupNewPatientMutationStatus,
     error: setupNewPatientMutationError,
   } = useSetupNewPatientMutation();
-
-  useQuery(testRoleQuery);
 
   const [openDatePicker, setOpenDatePicker] = React.useState(false);
   const { data: session } = useSession();
@@ -76,7 +71,6 @@ export function SetupProfilePage() {
       setupNewPatient(value);
     },
   });
-
   React.useEffect(() => {
     if (setupNewPatientMutationStatus === "success") {
       toast.success(
@@ -85,33 +79,28 @@ export function SetupProfilePage() {
       signOutAction({ redirectTo: "/login" });
     } else if (setupNewPatientMutationStatus === "error") {
       toast.error(
-        `Thiết lập hồ sơ cá nhân thất bại: ${
-          (setupNewPatientMutationError as any)?.message ??
-          String(setupNewPatientMutationError)
-        }`
+        `Thiết lập hồ sơ cá nhân thất bại: ${setupNewPatientMutationError.message}`
       );
-      type Field = "email" | "citizenIdentification" | "phone";
-      type ErrorShape = Partial<Record<Field, unknown>>;
-
-      if ((setupNewPatientMutationError as any)?.statusCode === 409) {
-        const err = ((setupNewPatientMutationError as any)?.error ??
-          {}) as ErrorShape;
-
-        const config: ReadonlyArray<[Field, string]> = [
-          ["email", "Email đã được sử dụng bởi người dùng khác."],
-          [
-            "citizenIdentification",
-            "Số căn cước công dân đã được sử dụng bởi người dùng khác.",
-          ],
-          ["phone", "Số điện thoại đã được sử dụng bởi người dùng khác."],
-        ] as const;
-
-        for (const [field, message] of config) {
-          if (err[field]) {
-            form.fieldInfo[field].instance?.setErrorMap({
-              onSubmit: [{ message }],
-            });
+      if (setupNewPatientMutationError.statusCode === 409) {
+        const errField = JSON.parse(
+          setupNewPatientMutationError.error
+        ) as string[];
+        for (const field of errField) {
+          if (
+            field !== "email" &&
+            field !== "phone" &&
+            field !== "citizenIdentification"
+          ) {
+            toast.error(
+              "Thông tin bị trùng lặp với một tài khoản khác. Vui lòng kiểm tra lại."
+            );
+            continue;
           }
+          form.fieldInfo[field].instance?.setErrorMap({
+            onSubmit: [
+              { message: "Thông tin bị trùng lặp với một tài khoản khác" },
+            ],
+          });
         }
       }
     }
@@ -377,13 +366,6 @@ export function SetupProfilePage() {
           </form>
         </CardContent>
         <CardFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => toast.success("This is a test notification!")}
-          >
-            Test
-          </Button>
           <Button
             type="submit"
             disabled={isSetupNewPatientMutationPending}

@@ -5,8 +5,8 @@ export async function getMyPatientInfo() {
   return fetcher("/patient/me");
 }
 
-export async function testRole() {
-  return fetcher("/patients/test-role");
+export async function getPatientInfo() {
+  return fetcher("/patients/info");
 }
 
 export async function setupNewPatient(input: PatientInitInfoFormData) {

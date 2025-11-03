@@ -13,17 +13,23 @@ export default auth((req: any) => {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
-  const profileSetupPath = "/app/profile/setup";
+  const profileSetupPath = "/setup";
   if (
-    session.user &&
-    !session.user.patientId &&
-    req.nextUrl.pathname !== profileSetupPath
+    !req.nextUrl.pathname.startsWith(profileSetupPath) ||
+    !req.nextUrl.pathname.startsWith("/test")
   ) {
-    url.pathname = profileSetupPath;
-    return NextResponse.redirect(url);
+    if (!session.user.patientId) {
+      url.pathname = profileSetupPath;
+      return NextResponse.redirect(url);
+    }
+  } else {
+    if (session.user.patientId) {
+      url.pathname = "/app";
+      return NextResponse.redirect(url);
+    }
   }
   return NextResponse.next();
 });
 export const config = {
-  matcher: ["/app/:path*", "/api/proxy/:path*"],
+  matcher: ["/app/:path*", "/api/proxy/:path*", "/setup"],
 };

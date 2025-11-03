@@ -1,12 +1,12 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getMyPatientInfo, testRole } from "./api";
+import { getMyPatientInfo, getPatientInfo } from "./api";
 
-export const getPatientInfoQuery = queryOptions({
-  queryKey: ["patient"],
+export const getMyPatientInfoQuery = queryOptions({
+  queryKey: ["my-patient-info"],
   queryFn: () => getMyPatientInfo(),
 });
 
-export const testRoleQuery = queryOptions({
-  queryKey: ["patient-test-role"],
-  queryFn: () => testRole(),
+export const getPatientInfoQuery = queryOptions({
+  queryKey: ["patient-info"],
+  queryFn: () => getPatientInfo(),
 });

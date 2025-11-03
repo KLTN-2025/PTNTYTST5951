@@ -47,13 +47,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
       issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
       authorization: {
-        params: { scope: "openid profile email patientId" },
+        params: { scope: "openid profile email beetamin" },
       },
     }),
   ],
+  session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, account, profile }) {
       if (account && profile) {
+        console.log("JWT: ", { token, account, profile });
         const now = Math.floor(Date.now() / 1000);
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
