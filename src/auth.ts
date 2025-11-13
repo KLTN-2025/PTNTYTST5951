@@ -1,98 +1,181 @@
-import NextAuth from "next-auth";
-import Keycloak from "next-auth/providers/keycloak";
+import NextAuth from 'next-auth';
+import Keycloak from 'next-auth/providers/keycloak';
+import type { JWT } from 'next-auth/jwt';
+import * as jose from 'jose';
 
-const LEEWAY = 60;
+export const REFRESH_TOKEN_ERROR = 'RefreshAccessTokenError' as const;
+export const TOKEN_ERROR = 'TokenError' as const;
 
-async function refreshKeycloakToken(token: any) {
+const KEYCLOAK_ISSUER = process.env.KEYCLOAK_ISSUER;
+const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID;
+const KEYCLOAK_CLIENT_SECRET = process.env.KEYCLOAK_CLIENT_SECRET;
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const NEXTAUTH_URL = process.env.NEXTAUTH_URL;
+const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
+
+if (
+  !KEYCLOAK_ISSUER ||
+  !KEYCLOAK_CLIENT_ID ||
+  !KEYCLOAK_CLIENT_SECRET ||
+  !API_URL ||
+  !NEXTAUTH_URL ||
+  !NEXTAUTH_SECRET
+) {
+  throw new Error('Missing required auth environment variables');
+}
+
+console.log('[AUTH] NEXTAUTH_URL', process.env.NEXTAUTH_URL);
+const isTokenValid = (token: JWT): boolean =>
+  !!token.accessToken &&
+  typeof token.accessTokenExpires === 'number' &&
+  Date.now() < token.accessTokenExpires;
+
+const withError = (token: JWT, error: JWT['error']): JWT => ({
+  ...token,
+  accessToken: undefined,
+  accessTokenExpires: undefined,
+  refreshToken: undefined,
+  error,
+});
+
+const extractClientRoles = (payload: any, clientId: string) => {
+  return payload?.resource_access?.[clientId]?.roles ?? [];
+};
+
+async function refreshAccessToken(token: JWT): Promise<JWT> {
+  if (!token.refreshToken) {
+    console.log('No refresh token available');
+    return withError(token, REFRESH_TOKEN_ERROR);
+  }
+
   try {
+    const url = `${KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
+
     const params = new URLSearchParams({
-      client_id: process.env.AUTH_KEYCLOAK_ID!,
-      client_secret: process.env.AUTH_KEYCLOAK_SECRET!,
-      grant_type: "refresh_token",
+      client_id: KEYCLOAK_CLIENT_ID!,
+      grant_type: 'refresh_token',
       refresh_token: token.refreshToken,
     });
 
-    const issuer = process.env.AUTH_KEYCLOAK_ISSUER!;
-    const res = await fetch(`${issuer}/protocol/openid-connect/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params,
+    if (KEYCLOAK_CLIENT_SECRET) {
+      params.set('client_secret', KEYCLOAK_CLIENT_SECRET);
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+      cache: 'no-store',
     });
 
-    if (!res.ok) throw new Error("RefreshTokenRequestFailed");
-    const data = await res.json();
+    if (!res.ok) {
+      console.log('Failed to refresh access token', await res.text());
+      return withError(token, REFRESH_TOKEN_ERROR);
+    }
 
-    const now = Math.floor(Date.now() / 1000);
+    const data = await res.json();
+    const now = Date.now();
+    const expiresInSec = Number(data.expires_in ?? 300);
 
     return {
       ...token,
-      accessToken: data.access_token,
-      idToken: data.id_token ?? token.idToken,
+      accessToken: data.access_token ?? token.accessToken,
+      accessTokenExpires: now + expiresInSec * 1000 - 5000,
       refreshToken: data.refresh_token ?? token.refreshToken,
-      expiresAt: now + (data.expires_in ?? 300) - LEEWAY,
-      refreshExpiresAt: data.refresh_expires_in
-        ? now + data.refresh_expires_in - LEEWAY
-        : token.refreshExpiresAt,
+      idToken: data.id_token ?? token.idToken,
       error: undefined,
+      patient: token.patient,
     };
-  } catch (e) {
-    return { ...token, error: "RefreshTokenError" as const };
+  } catch {
+    console.log('Error occurred while refreshing access token');
+    return withError(token, REFRESH_TOKEN_ERROR);
   }
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: NEXTAUTH_SECRET,
+  session: { strategy: 'jwt' },
+
   providers: [
     Keycloak({
-      clientId: process.env.AUTH_KEYCLOAK_ID!,
-      clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
-      issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
-      authorization: {
-        params: { scope: "openid profile email beetamin" },
-      },
+      clientId: KEYCLOAK_CLIENT_ID!,
+      clientSecret: KEYCLOAK_CLIENT_SECRET!,
+      issuer: KEYCLOAK_ISSUER,
     }),
   ],
-  session: { strategy: "jwt" },
+
   callbacks: {
     async jwt({ token, account, profile }) {
-      if (account && profile) {
-        console.log("JWT: ", { token, account, profile });
-        const now = Math.floor(Date.now() / 1000);
-        token.accessToken = account.access_token;
-        token.refreshToken = account.refresh_token;
-        token.idToken = account.id_token;
-        token.provider = account.provider;
-        token.expiresAt = (account.expires_at ?? now + 300) - LEEWAY;
-        token.refreshExpiresAt =
-          now + (account as any).refresh_expires_in - LEEWAY;
-        token.name = `${(profile as any).family_name ?? ""} ${
-          (profile as any).given_name ?? ""
-        }`.trim();
-        token.patientId = (profile as any).patientId;
-        token.userId = account.providerAccountId;
+      if (account && token) {
+        console.log(account, profile);
+        if (account.access_token) {
+          const expiresInSec =
+            typeof account.expires_in === 'number' ? account.expires_in : 300;
+          const expiresAt = Date.now() + expiresInSec * 1000 - 5000;
+          const payloadJson = jose.decodeJwt(account.access_token!);
+          const clientRoles = extractClientRoles(
+            payloadJson,
+            KEYCLOAK_CLIENT_ID
+          );
+          return {
+            ...token,
+            name: profile?.name ?? token.name,
+            email: profile?.email ?? token.email,
+            sub: account.providerAccountId ?? token.sub,
+            accessToken: account.access_token,
+            accessTokenExpires: expiresAt,
+            refreshToken: account.refresh_token,
+            roles: clientRoles,
+            idToken: account.id_token,
+            error: undefined,
+            fhir: profile?.fhir ?? token.fhir,
+          };
+        }
         return token;
       }
-
-      const now = Math.floor(Date.now() / 1000);
-      if (token.refreshExpiresAt && now >= (token.refreshExpiresAt as number)) {
-        return { ...token, error: "RefreshTokenExpired" as const };
-      }
-      if (now < (token.expiresAt as number)) return token;
-
-      // Hết hạn → refresh
-      if (token.refreshToken) {
-        return await refreshKeycloakToken(token);
-      }
-      return { ...token, error: "NoRefreshTokenError" as const };
+      return await refreshAccessToken(token);
     },
 
     async session({ session, token }) {
-      (session as any).accessToken = token.accessToken;
-      (session as any).idToken = token.idToken;
-      (session as any).error = token.error;
-      session.expiresAt = token.expiresAt as number;
-      session.user.patientId = (token as any).patientId;
-      session.user.id = (token as any).userId;
+      session.user = {
+        ...session.user,
+        id: token.sub ?? session.user?.id,
+        name: token.name ?? session.user?.name,
+        roles: token.roles ?? session.user?.roles,
+        email: token.email ?? session.user?.email,
+        fhir: token.fhir ?? session.user?.fhir,
+      };
+
+      session.accessToken = token.accessToken;
+      if (token.error) {
+        session.error = token.error;
+      }
       return session;
+    },
+  },
+
+  events: {
+    async signOut(message) {
+      const token =
+        'token' in message ? (message.token as JWT | undefined) : undefined;
+      const issuer = KEYCLOAK_ISSUER?.replace(/\/+$/, '');
+
+      if (!issuer || !token?.idToken) return;
+
+      const endSessionEndpoint = `${issuer}/protocol/openid-connect/logout`;
+
+      const params = new URLSearchParams({
+        id_token_hint: token.idToken,
+        post_logout_redirect_uri: NEXTAUTH_URL!,
+      });
+
+      try {
+        await fetch(`${endSessionEndpoint}?${params.toString()}`, {
+          cache: 'no-store',
+        });
+      } catch {
+        console.log('Error occurred while signing out from Keycloak');
+      }
     },
   },
 });
