@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { HumanName, ContactPoint, Identifier } from 'fhir/r5';
+import { HumanName, ContactPoint, Identifier } from 'fhir/r4';
 
 @Injectable()
 export class FhirHelperService {
@@ -35,7 +35,6 @@ export class FhirHelperService {
     }
     return contactPoints;
   }
-
   identifierConverter({
     citizenIdentification,
     userId,
@@ -72,10 +71,38 @@ export class FhirHelperService {
             },
           ],
         },
-        system: 'https://beetamin.hivevn.net/fhir/sid/beetamin-id',
+        system: 'https://id.hivevn.net/identifier',
         value: userId,
       });
     }
     return identifiers;
+  }
+
+  humanNameToString(humanName?: HumanName[]): string {
+    if (!humanName || humanName.length === 0) return '';
+    const name = humanName[0];
+    let fullName = '';
+    if (name.given && name.given.length > 0) {
+      fullName += name.given.join(' ') + ' ';
+    }
+    if (name.family) {
+      fullName += name.family;
+    }
+    return fullName.trim();
+  }
+
+  contactPointToString(contactPoints?: ContactPoint[]): {
+    phone?: string;
+    email?: string;
+  } {
+    const result: { phone?: string; email?: string } = {};
+    contactPoints?.forEach((cp) => {
+      if (cp.system === 'phone') {
+        result.phone = cp.value;
+      } else if (cp.system === 'email') {
+        result.email = cp.value;
+      }
+    });
+    return result;
   }
 }

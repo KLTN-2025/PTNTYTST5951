@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import {
   KeycloakConnectModule,
   AuthGuard,
   KeycloakConnectOptions,
   RoleGuard,
+  ResourceGuard,
 } from 'nest-keycloak-connect';
 import { APP_GUARD } from '@nestjs/core';
 import { KeycloakAdminService } from './keycloak-admin.service';
@@ -12,7 +13,6 @@ import { KeycloakAdminService } from './keycloak-admin.service';
 @Module({
   imports: [
     KeycloakConnectModule.registerAsync({
-      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService): KeycloakConnectOptions => {
         const keycloakBaseUrl = config.get<string>('KEYCLOAK_BASE_URL');
@@ -41,7 +41,14 @@ import { KeycloakAdminService } from './keycloak-admin.service';
       provide: APP_GUARD,
       useClass: AuthGuard,
     },
-    { provide: APP_GUARD, useClass: RoleGuard },
+    {
+      provide: APP_GUARD,
+      useClass: RoleGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ResourceGuard,
+    },
   ],
   exports: [KeycloakAdminService],
 })

@@ -1,18 +1,19 @@
 import {
   BadRequestException,
-  ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
 } from '@nestjs/common';
 import { FhirService } from 'src/fhir/fhir.service';
 import { InitIdentitiesInfoDto } from './dtos/identities-info.dto';
-import { Patient, Bundle, Practitioner } from 'fhir/r5';
-import { User } from '../commons/decorators/user.decorator';
+import { Patient, Bundle, Practitioner } from 'fhir/r4';
+import { AuthUser } from '../commons/decorators/user.decorator';
 import { FhirHelperService } from 'src/fhir/fhir-helper.service';
-import { KeycloakAdminService } from 'src/auth/keycloak-admin.service';
 import { UserRole } from 'src/commons/enums/role.enum';
+import { KeycloakAdminService } from 'src/auth/keycloak-admin.service';
 
 type UniqueFieldKey = 'userId' | 'citizenIdentification' | 'phone' | 'email';
-
+type ConflictField = { field: string; message: string };
 @Injectable()
 export class IdentitiesService {
   constructor(
@@ -22,81 +23,75 @@ export class IdentitiesService {
   ) {}
 
   async createNewUser(
-    userData: User,
+    inputUserData: AuthUser,
     initIdentitiesInfoData: InitIdentitiesInfoDto,
     identityType: UserRole,
   ): Promise<Patient | Practitioner> {
     const resourceType =
       identityType === UserRole.PATIENT ? 'Patient' : 'Practitioner';
-    const identifierData = this.fhirHelperService.identifierConverter({
-      ...initIdentitiesInfoData,
-      userId: userData.id,
-    });
-    if (identifierData.length === 0) {
-      throw new BadRequestException(
-        'Người dùng phải có ít nhất một định danh hợp lệ',
-      );
-    }
+    //? Check unique fields
     const exitedUser = await this.isUserUniqueField({
       ...initIdentitiesInfoData,
       role: identityType,
-      userId: userData.id,
+      userId: inputUserData.userId,
     });
-    console.log('exitedUser', exitedUser);
-    if (exitedUser) {
-      throw new ConflictException('Dữ liệu trùng lặp', {
-        description: JSON.stringify(exitedUser),
-      });
+    if (exitedUser.length > 0) {
+      throw new HttpException(
+        {
+          message: 'Your input has conflict fields',
+          error: exitedUser,
+          statusCode: HttpStatus.CONFLICT,
+        },
+        HttpStatus.CONFLICT,
+      );
     }
+    const identifierData = this.fhirHelperService.identifierConverter({
+      ...initIdentitiesInfoData,
+      userId: inputUserData.userId,
+    });
     const telecomData = this.fhirHelperService.contactPointConverter(
       initIdentitiesInfoData,
     );
-    if (telecomData.length === 0) {
-      throw new BadRequestException(
-        'Người dùng phải có ít nhất một thông tin liên hệ hợp lệ',
-      );
-    }
-    const patientData: Patient | Practitioner = {
+    const newBeetaminUserDataInput: Patient | Practitioner = {
       resourceType: resourceType,
 
       identifier: identifierData,
       name: [
         this.fhirHelperService.humanNameConverter(initIdentitiesInfoData.name),
       ],
-      telecom: this.fhirHelperService.contactPointConverter(
-        initIdentitiesInfoData,
-      ),
+      telecom: telecomData,
       gender: initIdentitiesInfoData.gender,
       birthDate: initIdentitiesInfoData.birthdate,
     };
-    const ifNoneExistIdentifier = identifierData
-      .map((id) => `identifier=${id.system}|${id.value}`)
-      .join('&');
 
-    const ifNoneExistTelecom = telecomData
-      .map((contact) => `telecom=${contact.system}|${contact.value}`)
-      .join('&');
-
-    const ifNoneExistCombined = [ifNoneExistIdentifier, ifNoneExistTelecom]
-      .filter(Boolean)
-      .join('&');
-
-    const newPatientData: Patient | Practitioner = await this.fhirService.post<
-      Patient | Practitioner
-    >(`/${resourceType}`, patientData, {
-      headers: {
-        'If-None-Exist': ifNoneExistCombined,
-      },
-    });
-    if (!newPatientData.id) {
+    const newBeetaminUserData: Patient | Practitioner =
+      await this.fhirService.post<Patient | Practitioner>(
+        `/${resourceType}`,
+        newBeetaminUserDataInput,
+      );
+    if (!newBeetaminUserData.id) {
       throw new BadRequestException(`Tạo ${identityType} không thành công`);
     }
-    await this.keycloakAdminService.assignUser(
-      userData.id,
-      newPatientData.id,
-      identityType,
-    );
-    return newPatientData;
+    // Gán role tương ứng trong Keycloak
+    try {
+      const groupName = `Beetamin ${identityType}`;
+      await this.keycloakAdminService.assignUserToGroup(
+        inputUserData.userId,
+        groupName,
+      );
+      await this.keycloakAdminService.setBeetaminIdForUser(
+        inputUserData.userId,
+        newBeetaminUserData.id,
+        resourceType,
+      );
+    } catch (error) {
+      await this.fhirService.delete(
+        `/${resourceType}/${newBeetaminUserData.id}`,
+      );
+      console.error(error);
+      throw new Error(`Gán role và gán beetamin-id không thành công: ${error}`);
+    }
+    return newBeetaminUserData;
   }
 
   async isUserUniqueField({
@@ -111,17 +106,16 @@ export class IdentitiesService {
     phone?: string;
     email?: string;
     role?: UserRole;
-  }): Promise<Record<UniqueFieldKey, boolean> | null> {
+  }): Promise<ConflictField[]> {
     const resourceTypeByRole: Partial<
       Record<UserRole, 'Patient' | 'Practitioner'>
     > = {
       [UserRole.PATIENT]: 'Patient',
       [UserRole.PRACTITIONER]: 'Practitioner',
     };
-    console.log('userId', userId);
 
     const resourceType = resourceTypeByRole[role!];
-    if (!resourceType) throw new BadRequestException('Role không hợp lệ');
+    if (!resourceType) throw new BadRequestException('Phân quyền không hợp lệ');
 
     const queryBuilders: Record<UniqueFieldKey, (v: string) => string> = {
       userId: (v) =>
@@ -153,16 +147,18 @@ export class IdentitiesService {
         return { key, found };
       });
 
-    if (tasks.length === 0) return null;
+    if (tasks.length === 0) return [];
 
     const results = await Promise.all(tasks);
-    const duplicates: Partial<Record<UniqueFieldKey, boolean>> = {};
-    for (const r of results) {
-      if (r.found) duplicates[r.key] = true;
-    }
-
-    return Object.keys(duplicates).length > 0
-      ? (duplicates as Record<UniqueFieldKey, boolean>)
-      : null;
+    const duplicates: ConflictField[] = results.reduce((acc, curr) => {
+      if (curr.found) {
+        acc.push({
+          field: curr.key,
+          message: `${curr.key} is already in use`,
+        });
+      }
+      return acc;
+    }, [] as ConflictField[]);
+    return duplicates;
   }
 }
