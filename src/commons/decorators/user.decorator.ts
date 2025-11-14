@@ -2,7 +2,7 @@ import {
   createParamDecorator,
   ExecutionContext,
   ForbiddenException,
-  ServiceUnavailableException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { Bundle, Patient, Practitioner } from 'fhir/r4';
@@ -30,7 +30,7 @@ const findUserByResourceIdentifier = async (
     `http://localhost:8080/fhir/${resourceType}?identifier=https://id.hivevn.net/identifier|${hiveId}`,
   );
   if (!response.ok) {
-    throw new ServiceUnavailableException(
+    throw new InternalServerErrorException(
       `Failed to fetch ${resourceType} in FHIR server`,
     );
   }
@@ -52,7 +52,7 @@ const findUserByResourceId = async (
     if (response.status === 404 || response.status === 410) {
       return null;
     } else {
-      throw new ServiceUnavailableException(
+      throw new InternalServerErrorException(
         `Failed to fetch resource ${resourceId} in FHIR server`,
       );
     }

@@ -9,6 +9,8 @@ import { AdminsModule } from './admins/admins.module';
 import { ObservationsModule } from './observations/observations.module';
 import { MedicalRecordsModule } from './medical_records/medical_records.module';
 import { QuestionnairesModule } from './questionnaires/questionnaires.module';
+import { S3Module } from './s3/s3.module';
+import { AssetsModule } from './assets/assets.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -23,6 +25,8 @@ import { QuestionnairesModule } from './questionnaires/questionnaires.module';
     ObservationsModule,
     MedicalRecordsModule,
     QuestionnairesModule,
+    S3Module,
+    AssetsModule,
   ],
 })
 export class AppModule {}

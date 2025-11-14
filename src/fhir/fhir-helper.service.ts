@@ -77,7 +77,6 @@ export class FhirHelperService {
     }
     return identifiers;
   }
-
   humanNameToString(humanName?: HumanName[]): string {
     if (!humanName || humanName.length === 0) return '';
     const name = humanName[0];
@@ -90,7 +89,6 @@ export class FhirHelperService {
     }
     return fullName.trim();
   }
-
   contactPointToString(contactPoints?: ContactPoint[]): {
     phone?: string;
     email?: string;

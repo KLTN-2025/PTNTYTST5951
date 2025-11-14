@@ -5,4 +5,5 @@ export class PatientDto {
   name?: string;
   birthDate?: string;
   gender?: 'male' | 'female';
+  photo?: string;
 }

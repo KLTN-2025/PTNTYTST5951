@@ -1,7 +1,7 @@
 import {
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { FhirResource, Patient, Questionnaire } from 'fhir/r4';
 import { Bundle } from 'fhir/r4';
@@ -43,7 +43,7 @@ export class PatientsService {
       if (error instanceof NotFoundException) {
         return null;
       }
-      throw new ServiceUnavailableException('FHIR server is unavailable');
+      throw new InternalServerErrorException('FHIR server is unavailable');
     }
   }
 

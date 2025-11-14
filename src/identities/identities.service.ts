@@ -61,7 +61,7 @@ export class IdentitiesService {
       ],
       telecom: telecomData,
       gender: initIdentitiesInfoData.gender,
-      birthDate: initIdentitiesInfoData.birthdate,
+      birthDate: initIdentitiesInfoData.birthDate,
     };
 
     const newBeetaminUserData: Patient | Practitioner =
