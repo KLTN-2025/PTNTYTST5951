@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Observation } from 'fhir/r5';
+import { Observation } from 'fhir/r4';
 
 @Injectable()
 export class ObservationService {

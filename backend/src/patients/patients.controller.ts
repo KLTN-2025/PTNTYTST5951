@@ -1,36 +1,47 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Post } from '@nestjs/common';
 import { PatientsService } from './patients.service';
-import { User } from 'src/commons/decorators/user.decorator';
-import { InitIdentitiesInfoDto } from 'src/identities/dtos/identities-info.dto';
-import { Roles } from 'nest-keycloak-connect';
+import { AuthUser, PatientUser } from 'src/commons/decorators/user.decorator';
+import type { Bundle, FhirResource } from 'fhir/r4';
 
 @Controller('patients')
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) {}
 
-  getPatientInfo(keycloakId: string) {
-    return {
-      keycloakId,
-    };
+  @Get('auth')
+  getPatientId(@AuthUser({ patient: true }) user: AuthUser) {
+    if (!user.patientId) {
+      throw new NotFoundException('Patient resource not found for the user', {
+        description: 'PATIENT_RESOURCE_NOT_FOUND',
+      });
+    }
+    return { patientId: user.patientId };
   }
 
-  @Get('test-role')
-  @Roles({ roles: ['realm:patient'] })
-  testRole(@User() user: User): any {
-    return {
-      message: 'You have access to this route',
-      user,
-    };
+  @Get('me')
+  async getMyPatientResource(
+    @PatientUser({ patient: true }) user: PatientUser,
+  ): Promise<any> {
+    const patientResource = await this.patientsService.findPatientById(
+      user.patientId,
+    );
+    return patientResource;
   }
 
-  @Post('init')
-  createPatient(
-    @User() user: User,
-    @Body() patientInfo: InitIdentitiesInfoDto,
-  ): any {
-    return {
-      user,
-      patientInfo,
-    };
+  @Get('beetamin-init-health-profile')
+  async getBeetaminHealthProfile(
+    @PatientUser({ patient: true }) user: PatientUser,
+  ): Promise<any> {
+    const healthProfile = await this.patientsService.getBeetaminHealthProfile(
+      user.patientId,
+    );
+    return healthProfile;
+  }
+
+  @Post('beetamin-init-health-profile')
+  async initBeetaminHealthProfile(
+    @PatientUser({ patient: true }) user: PatientUser,
+    @Body() profileData: Bundle<FhirResource>,
+  ): Promise<any> {
+    return await this.patientsService.initBeetaminHealthProfile(profileData);
   }
 }

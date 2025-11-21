@@ -1,4 +1,6 @@
 onlyBuiltDependencies:
   - '@nestjs/core'
   - chromedriver
+  - core-js
+  - fhirpath
   - unrs-resolver

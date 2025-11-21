@@ -20,6 +20,10 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@aehrc/sdc-populate": "^4.6.2",
+    "@aehrc/sdc-template-extract": "^1.0.14",
+    "@aws-sdk/client-s3": "^3.931.0",
+    "@aws-sdk/credential-providers": "^3.931.0",
     "@keycloak/keycloak-admin-client": "^26.3.4",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.1.6",
@@ -31,6 +35,7 @@
     "axios": "^1.11.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "fhirclient": "^2.6.3",
     "ioredis": "^5.8.0",
     "jose": "^6.1.0",
     "jwks-rsa": "^3.2.0",
@@ -40,7 +45,8 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
@@ -51,6 +57,7 @@
     "@types/express": "^5.0.3",
     "@types/fhir": "^0.0.41",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.0.0",
     "@types/node": "^22.18.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.3",
@@ -86,5 +93,5 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   },
-  "packageManager": "pnpm@10.19.0+sha512.c9fc7236e92adf5c8af42fd5bf1612df99c2ceb62f27047032f4720b33f8eacdde311865e91c411f2774f618d82f320808ecb51718bfa82c060c4ba7c76a32b8"
+  "packageManager": "pnpm@10.20.0+sha512.cf9998222162dd85864d0a8102e7892e7ba4ceadebbf5a31f9c2fce48dfce317a9c53b9f6464d1ef9042cba2e02ae02a9f7c143a2b438cd93c91840f0192b9dd"
 }

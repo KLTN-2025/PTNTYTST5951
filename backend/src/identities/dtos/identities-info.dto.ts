@@ -33,7 +33,7 @@ export class InitIdentitiesInfoDto {
 
   @IsNotEmpty()
   @IsDateString()
-  birthdate: string;
+  birthDate: string;
 }
 
 export class PatientContactHandlerDto {
