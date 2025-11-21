@@ -1,5 +1,5 @@
-import Image from "next/image";
-import React from "react";
+import Image from 'next/image';
+import React from 'react';
 
 const LandingPage = () => {
   return (
@@ -15,14 +15,14 @@ const LandingPage = () => {
             </h2>
             <p className="text-[20px] font-normal w-full text-[#666] mt-5">
               Đặt lịch khám nhanh chóng, khám từ xa tiện lợi, quản lý hồ sơ sức
-              khoẻ điện tử và theo dõi bệnh mạn tính ngay trên điện thoại.{" "}
+              khoẻ điện tử và theo dõi bệnh mạn tính ngay trên điện thoại.{' '}
               <br />
               Kết nối trực tiếp với bác sĩ, cơ sở y tế, phòng xét nghiệm và hiệu
               thuốc – tất cả trong một ứng dụng duy nhất.
             </p>
             <a
               type="button"
-              href="/app"
+              href="/api/auth/signin"
               className="cursor-pointer mt-10 bg-[#ff914d] text-white text-[20px] font-semibold px-8 py-4 rounded-full hover:bg-[#e6833d] w-[200px] transition"
             >
               Truy cập ngay

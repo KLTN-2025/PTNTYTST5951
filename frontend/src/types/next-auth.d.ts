@@ -1,15 +1,30 @@
-import { DefaultSession, DefaultUser } from "next-auth";
-import { DefaultJWT } from "next-auth/jwt";
+import { DefaultSession, DefaultUser } from 'next-auth';
+import { DefaultJWT } from 'next-auth/jwt';
 
-declare module "next-auth" {
-  interface Session extends DefaultSession {
+type FhirType = {
+  patient?: string;
+  practitioner?: string;
+};
+
+declare module 'next-auth/jwt' {
+  interface JWT {
     accessToken?: string;
-    expiresAt?: unknown;
+    accessTokenExpires?: number;
+    refreshToken?: string;
     idToken?: string;
-    error?: unknown;
-    user: DefaultUser & {
-      id?: string;
-      patientId?: string;
+    roles?: string[];
+    fhir?: FhirType;
+    error?: typeof REFRESH_TOKEN_ERROR | typeof TOKEN_ERROR;
+  }
+}
+
+declare module 'next-auth' {
+  interface Session {
+    accessToken?: string;
+    error?: typeof REFRESH_TOKEN_ERROR | typeof TOKEN_ERROR;
+    user: DefaultSession['user'] & {
+      fhir?: FhirType;
+      roles?: string[];
     };
   }
 }

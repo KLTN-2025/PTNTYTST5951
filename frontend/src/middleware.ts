@@ -1,29 +1,73 @@
-import { auth } from "@/auth";
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
+import { auth, REFRESH_TOKEN_ERROR, TOKEN_ERROR } from './auth';
 
-export default auth((req: any) => {
-  const session = req.auth;
-  const url = req.nextUrl.clone();
+const signInUrl = '/api/auth/signin';
+
+export default auth(async (req) => {
+  const { nextUrl } = req;
   if (
-    !session ||
-    !session.user ||
-    session.error ||
-    (session.expiresAt && Date.now() > session.expiresAt * 1000)
+    !req.auth ||
+    req.auth?.error === REFRESH_TOKEN_ERROR ||
+    req.auth?.error === TOKEN_ERROR
   ) {
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+    const signInWithRedirectUrl = new URL(signInUrl, nextUrl.origin);
+    signInWithRedirectUrl.searchParams.set('callbackUrl', nextUrl.href);
+    return NextResponse.redirect(signInWithRedirectUrl);
   }
-  const profileSetupPath = "/app/profile/setup";
-  if (
-    session.user &&
-    !session.user.patientId &&
-    req.nextUrl.pathname !== profileSetupPath
-  ) {
-    url.pathname = profileSetupPath;
-    return NextResponse.redirect(url);
+  if (nextUrl.pathname.startsWith('/register')) {
+    if (
+      req.auth?.user?.fhir?.patient &&
+      nextUrl.pathname === '/register/patient'
+    ) {
+      const appUrl = new URL('/patient', nextUrl.origin);
+      return NextResponse.redirect(appUrl);
+    }
+    if (
+      req.auth?.user?.fhir?.practitioner &&
+      nextUrl.pathname === '/register/practitioner'
+    ) {
+      const appUrl = new URL('/practitioner', nextUrl.origin);
+      return NextResponse.redirect(appUrl);
+    }
+  }
+  if (nextUrl.pathname.startsWith('/patient')) {
+    if (!req.auth?.user?.fhir?.patient) {
+      const setupUrl = new URL('/register/patient', nextUrl.origin);
+      return NextResponse.redirect(setupUrl);
+    }
+    if (!req.auth?.user?.roles?.includes('Patient')) {
+      const forbiddenUrl = new URL('/app/forbidden', nextUrl.origin);
+      return NextResponse.redirect(forbiddenUrl);
+    }
+  }
+  if (nextUrl.pathname.startsWith('/practitioner')) {
+    if (!req.auth?.user?.fhir?.practitioner) {
+      const setupUrl = new URL('/register/practitioner', nextUrl.origin);
+      return NextResponse.redirect(setupUrl);
+    }
+    if (!req.auth?.user?.roles?.includes('Practitioner')) {
+      const forbiddenUrl = new URL('/app/forbidden', nextUrl.origin);
+      return NextResponse.redirect(forbiddenUrl);
+    }
+  }
+  if (nextUrl.pathname.startsWith('/admin')) {
+    if (!req.auth?.user?.roles?.includes('Admin')) {
+      const forbiddenUrl = new URL('/app/forbidden', nextUrl.origin);
+      return NextResponse.redirect(forbiddenUrl);
+    }
   }
   return NextResponse.next();
 });
+
+// Áp dụng middleware cho tất cả đường dẫn /app/*
 export const config = {
-  matcher: ["/app/:path*", "/api/proxy/:path*"],
+  matcher: [
+    //? Role path
+    '/admin/:path*',
+    '/patient/:path*',
+    '/practitioner/:path*',
+
+    //? Action path
+    '/register/:path*',
+  ],
 };
