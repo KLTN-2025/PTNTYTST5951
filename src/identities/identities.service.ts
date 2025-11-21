@@ -56,9 +56,9 @@ export class IdentitiesService {
       resourceType: resourceType,
 
       identifier: identifierData,
-      name: [
-        this.fhirHelperService.humanNameConverter(initIdentitiesInfoData.name),
-      ],
+      name: this.fhirHelperService.humanNameConverter(
+        initIdentitiesInfoData.name,
+      ),
       telecom: telecomData,
       gender: initIdentitiesInfoData.gender,
       birthDate: initIdentitiesInfoData.birthDate,

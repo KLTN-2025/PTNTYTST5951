@@ -11,6 +11,7 @@ import { MedicalRecordsModule } from './medical_records/medical_records.module';
 import { QuestionnairesModule } from './questionnaires/questionnaires.module';
 import { S3Module } from './s3/s3.module';
 import { AssetsModule } from './assets/assets.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -27,6 +28,7 @@ import { AssetsModule } from './assets/assets.module';
     QuestionnairesModule,
     S3Module,
     AssetsModule,
+    OrganizationsModule,
   ],
 })
 export class AppModule {}

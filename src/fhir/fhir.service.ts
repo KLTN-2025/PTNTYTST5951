@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import type { FetchResourceCallback } from '@aehrc/sdc-populate';
 import { ConfigService } from '@nestjs/config';
-
+import { Bundle, FhirResource } from 'fhir/r4';
 @Injectable()
 export class FhirService {
   private readonly logger = new Logger(FhirService.name);
@@ -229,6 +229,10 @@ export class FhirService {
     const nextLink = links.find(isFhirLink);
     const next = nextLink?.url;
     return next ? this.get<T>(next) : null;
+  }
+
+  async submitTransaction(bundle: Bundle<FhirResource>) {
+    return await this.post<Bundle<FhirResource>>('', bundle);
   }
 
   async fetchResourceCallback(query: string): Promise<FetchResourceCallback> {

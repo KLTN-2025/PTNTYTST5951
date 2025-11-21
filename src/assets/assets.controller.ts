@@ -11,6 +11,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AssetsService } from './assets.service';
 import { v4 as uuidv4 } from 'uuid';
+import { ImageAssetDto } from './dtos/image.dto';
 import { Public } from 'nest-keycloak-connect';
 
 const IMAGE_TEN_MB = 10 * 1024 * 1024;
@@ -21,12 +22,11 @@ const IMAGE_ALLOWED_MIME_TYPES = [
   'image/webp',
 ];
 
-@Public()
 @Controller('assets')
 export class AssetsController {
   constructor(private readonly assetsService: AssetsService) {}
 
-  @Post('upload/images')
+  @Post('images')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: IMAGE_TEN_MB },
@@ -49,7 +49,9 @@ export class AssetsController {
       },
     }),
   )
-  async uploadImageAsset(@UploadedFile() file: Express.Multer.File) {
+  async uploadImageAsset(
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<ImageAssetDto> {
     if (!file) {
       throw new BadRequestException('No file provided for upload');
     }
@@ -58,6 +60,7 @@ export class AssetsController {
     return this.assetsService.uploadAsset(assetPath, file);
   }
 
+  @Public()
   @Get(':type/:id')
   async getAsset(
     @Param('type') type: string,

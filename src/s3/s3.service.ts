@@ -43,7 +43,7 @@ export class S3Service {
     try {
       await this.s3Client.send(command);
       const fileStreamUrl = `${process.env.ORIGIN}/api/${key}`;
-      return { url: fileStreamUrl };
+      return { url: fileStreamUrl, contentType };
     } catch (error) {
       console.error('Error uploading file to S3:', error);
       throw new HttpException('Failed to upload file', 500);

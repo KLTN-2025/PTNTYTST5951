@@ -9,7 +9,6 @@ export class AssetsService {
     const assetKey = `assets/${assetPath}`;
     const contentType = file.mimetype ?? 'application/octet-stream';
     const fileBuffer = file.buffer;
-
     return await this.s3Service.uploadFile(assetKey, fileBuffer, contentType);
   }
 
