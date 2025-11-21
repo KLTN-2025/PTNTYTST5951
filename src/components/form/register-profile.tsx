@@ -25,20 +25,13 @@ import {
   PopoverContent,
 } from '@/components/ui/popover';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
 } from '@/components/ui/input-group';
 import { z } from 'zod';
 import { ApiError } from '@/libs/fetcher';
+import { useEffect, useState } from 'react';
 
 export const identityInfoFormSchema = z.object({
   name: z.string().min(1, 'Họ và tên không được để trống.'),
@@ -58,7 +51,7 @@ export const identityInfoFormSchema = z.object({
   gender: z.enum(['male', 'female'], {
     error: 'Giới tính không hợp lệ.',
   }),
-  birthdate: z.date('Ngày sinh không hợp lệ.'),
+  birthDate: z.date('Ngày sinh không hợp lệ.'),
 });
 
 export type IdentityInfoFormData = z.infer<typeof identityInfoFormSchema>;
@@ -72,6 +65,7 @@ type RegisterProfileFormProps = {
   id?: string;
   isSubmitting?: boolean;
   defaultValues: IdentityInfoFormData;
+  isEditing?: boolean;
   submitError?: ApiError | null;
   onSubmit: (values: IdentityInfoFormData) => void | Promise<void>;
 };
@@ -85,11 +79,12 @@ export function RegisterProfileForm({
   id = 'register-profile-form',
   isSubmitting,
   defaultValues,
+  isEditing,
   submitError,
   onSubmit,
 }: RegisterProfileFormProps) {
-  const [openDatePicker, setOpenDatePicker] = React.useState(false);
-  const [errorMessage, setErrorMessage] = React.useState<string>();
+  const [openDatePicker, setOpenDatePicker] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>();
   const form = useForm({
     defaultValues,
     validators: {
@@ -99,8 +94,7 @@ export function RegisterProfileForm({
       await onSubmit(value as IdentityInfoFormData);
     },
   });
-
-  React.useEffect(() => {
+  useEffect(() => {
     if (submitError) {
       setErrorMessage(submitError.message);
       if (submitError.statusCode === 409) {
@@ -120,14 +114,19 @@ export function RegisterProfileForm({
     }
   }, [submitError]);
   return (
-    <Card className="w-full sm:max-w-lg">
-      <CardHeader>
-        <CardTitle>Thiết lập hồ sơ cá nhân</CardTitle>
-        <CardDescription>
-          Vui lòng cung cấp thông tin cá nhân của bạn để hoàn tất hồ sơ.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="w-full">
+      {!isEditing && (
+        <div>
+          <h2 className="font-bold text-lg">
+            {isEditing ? 'Chỉnh sửa' : 'Thiết lập'} hồ sơ cá nhân
+          </h2>
+          <p>
+            Vui lòng cung cấp thông tin cá nhân của bạn để{' '}
+            {isEditing ? 'chỉnh sửa' : 'thiết lập'} hồ sơ.
+          </p>
+        </div>
+      )}
+      <div className="mt-4">
         <div>
           {errorMessage && <p className="text-red-500 mb-4">{errorMessage}</p>}
         </div>
@@ -155,6 +154,7 @@ export function RegisterProfileForm({
                         id={field.name}
                         name={field.name}
                         value={field.state.value}
+                        disabled={true}
                         onBlur={field.handleBlur}
                         onChange={(e) => field.handleChange(e.target.value)}
                         aria-invalid={isInvalid}
@@ -319,7 +319,7 @@ export function RegisterProfileForm({
               />
 
               <form.Field
-                name="birthdate"
+                name="birthDate"
                 children={(field) => {
                   const isInvalid =
                     field.state.meta.isTouched && !field.state.meta.isValid;
@@ -375,12 +375,12 @@ export function RegisterProfileForm({
             </div>
           </FieldGroup>
         </form>
-      </CardContent>
-      <CardFooter>
+      </div>
+      <div className="mt-4">
         <Button type="submit" form={id} className="w-full bg-primary">
           {isSubmitting ? 'Đang lưu...' : 'Lưu thông tin'}
         </Button>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
   );
 }

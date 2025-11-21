@@ -1,9 +1,9 @@
-import React from "react";
-import Image from "next/image";
+import React from 'react';
+import Image from 'next/image';
 
 const BrandHeader = () => {
   return (
-    <div className={`mx-auto flex flex-row mt-2`}>
+    <div className={`mx-auto flex flex-row mt-2 items-end`}>
       <Image
         width={500}
         height={500}

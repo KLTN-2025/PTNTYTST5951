@@ -35,7 +35,7 @@ export default function Page({
         email: session.user.email || '',
         name: session.user.name || '',
         gender: 'male',
-        birthdate: new Date(),
+        birthDate: new Date(),
       };
       setFormDefaultValues(defaultValues);
     }
